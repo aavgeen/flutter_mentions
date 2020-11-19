@@ -10,6 +10,7 @@ class FlutterMentions extends StatefulWidget {
     this.suggestionListWidth = 280.0,
     this.onMarkupChanged,
     this.onMentionAdd,
+    this.previousMentions,
     this.onSearchChanged,
     this.leading = const [],
     this.trailing = const [],
@@ -78,7 +79,10 @@ class FlutterMentions extends StatefulWidget {
   final SuggestionPosition suggestionPosition;
 
   /// Triggers when the suggestion was added by tapping on suggestion.
-  final Function(Map<String, dynamic>) onMentionAdd;
+  final Function(Map<String, dynamic>, int) onMentionAdd;
+
+  /// gets a update list of previous mentions.
+  List<Map<String, dynamic>> previousMentions;
 
   /// Max height for the suggestion list
   ///
@@ -256,6 +260,8 @@ class FlutterMentionsState extends State<FlutterMentions> {
   ValueNotifier<bool> showSuggestions = ValueNotifier(false);
   LengthMap _selectedMention;
   String _pattern = '';
+  int lastPreviousMentionCount = 0;
+  bool startedMention = false;
 
   Map<String, Annotation> mapToAnotation() {
     final data = <String, Annotation>{};
@@ -309,15 +315,18 @@ class FlutterMentionsState extends State<FlutterMentions> {
         ? widget.mentions.firstWhere(
             (element) => selectedMention.str.contains(element.trigger))
         : widget.mentions[0];
+    final _replacementText =
+        "${_list.trigger}${value['display']}${widget.appendSpaceOnAdd ? ' ' : ''}";
 
     // find the text by range and replace with the new value.
     controller.text = controller.value.text.replaceRange(
       selectedMention.start,
       selectedMention.end,
-      "${_list.trigger}${value['display']}${widget.appendSpaceOnAdd ? ' ' : ''}",
+      _replacementText,
     );
 
-    if (widget.onMentionAdd != null) widget.onMentionAdd(value);
+    if (widget.onMentionAdd != null)
+      widget.onMentionAdd(value, selectedMention.start);
 
     // Move the cursor to next position after the new mentioned item.
     int nextCursorPosition =
@@ -330,34 +339,39 @@ class FlutterMentionsState extends State<FlutterMentions> {
   void suggestionListerner() {
     final cursorPos = controller.selection.baseOffset;
 
-    if (cursorPos >= 0) {
-      var _pos = 0;
+    if (cursorPos >= 1) {
+      if (controller.text[cursorPos - 1] == '@' ||
+          widget.previousMentions.length > lastPreviousMentionCount) {
+        startedMention = true;
+      }
+      if (!startedMention) {
+        return;
+      }
+      // if (widget.previousMentions.length > lastPreviousMentionCount) {
+      //   showSuggestions.value = true;
+      //   // return;
+      // }
+      lastPreviousMentionCount = widget.previousMentions.length;
+      final _startPos =
+          controller.text.substring(0, cursorPos).lastIndexOf('@');
 
-      final lengthMap = <LengthMap>[];
+      final _endPos = cursorPos;
+      String _value;
 
-      // split on each word and generate a list with start & end position of each word.
-      controller.value.text.split(RegExp(r'(\s)')).forEach((element) {
-        lengthMap.add(
-            LengthMap(str: element, start: _pos, end: _pos + element.length));
-
-        _pos = _pos + element.length + 1;
-      });
-
-      final val = lengthMap.indexWhere((element) {
-        _pattern = widget.mentions.map((e) => e.trigger).join('|');
-
-        return element.end == cursorPos &&
-            element.str.toLowerCase().contains(RegExp(_pattern));
-      });
-
-      showSuggestions.value = val != -1;
-
-      if (widget.onSuggestionVisibleChanged != null) {
-        widget.onSuggestionVisibleChanged(val != -1);
+      if (_startPos >= 0 && _startPos <= _endPos) {
+        _value = controller.text.substring(_startPos, _endPos);
       }
 
+      final _lengthMap = LengthMap(str: _value, start: _startPos, end: _endPos);
+
+      _pattern = widget.mentions.map((e) => e.trigger).join('|');
+      showSuggestions.value = _value != null;
+
+      if (widget.onSuggestionVisibleChanged != null) {
+        widget.onSuggestionVisibleChanged(_value != null);
+      }
       setState(() {
-        _selectedMention = val == -1 ? null : lengthMap[val];
+        _selectedMention = _value != null ? _lengthMap : null;
       });
     }
   }
@@ -373,8 +387,8 @@ class FlutterMentionsState extends State<FlutterMentions> {
 
     if (widget.onSearchChanged != null && _selectedMention?.str != null) {
       final str = _selectedMention.str.toLowerCase();
-
-      widget.onSearchChanged(str[0], str.substring(1));
+      if(startedMention)
+        widget.onSearchChanged(str[0], str.substring(1));
     }
   }
 
@@ -434,17 +448,11 @@ class FlutterMentionsState extends State<FlutterMentions> {
                     suggestionListWidth: widget.suggestionListWidth,
                     suggestionBuilder: list.suggestionBuilder,
                     suggestionListDecoration: widget.suggestionListDecoration,
-                    data: list.data.where((element) {
-                      final ele = element['display'].toLowerCase();
-                      final str = _selectedMention.str
-                          .toLowerCase()
-                          .replaceAll(RegExp(_pattern), '');
-
-                      return ele == str ? false : ele.contains(str);
-                    }).toList(),
+                    data: list.data,
                     onTap: (value) {
                       addMention(value, list);
                       showSuggestions.value = false;
+                      startedMention = false;
                     },
                   )
                 : Container();

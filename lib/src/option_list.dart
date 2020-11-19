@@ -24,7 +24,9 @@ class OptionList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return data.isNotEmpty
+    final _data = List<Map<String, dynamic>>.from(data);
+    _data.removeWhere((element) => element['previous'] ?? false);
+    return _data.isNotEmpty
         ? Container(
             decoration:
                 suggestionListDecoration ?? BoxDecoration(color: Colors.white),
@@ -35,20 +37,20 @@ class OptionList extends StatelessWidget {
               maxWidth: suggestionListWidth,
             ),
             child: ListView.builder(
-              itemCount: data.length,
+              itemCount: _data.length,
               shrinkWrap: true,
               itemBuilder: (context, index) {
                 return GestureDetector(
                   onTap: () {
-                    onTap(data[index]);
+                    onTap(_data[index]);
                   },
                   child: suggestionBuilder != null
-                      ? suggestionBuilder(data[index])
+                      ? suggestionBuilder(_data[index])
                       : Container(
                           color: Colors.blue,
                           padding: EdgeInsets.all(20.0),
                           child: Text(
-                            data[index]['display'],
+                            _data[index]['display'],
                             style: TextStyle(fontSize: 12),
                           ),
                         ),
