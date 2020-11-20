@@ -341,17 +341,13 @@ class FlutterMentionsState extends State<FlutterMentions> {
 
     if (cursorPos >= 1) {
       if (controller.text[cursorPos - 1] == '@' ||
-          widget.previousMentions.length > lastPreviousMentionCount) {
+          widget.previousMentions.length < lastPreviousMentionCount) {
         startedMention = true;
       }
+      lastPreviousMentionCount = widget.previousMentions.length;
       if (!startedMention) {
         return;
       }
-      // if (widget.previousMentions.length > lastPreviousMentionCount) {
-      //   showSuggestions.value = true;
-      //   // return;
-      // }
-      lastPreviousMentionCount = widget.previousMentions.length;
       final _startPos =
           controller.text.substring(0, cursorPos).lastIndexOf('@');
 
@@ -387,8 +383,7 @@ class FlutterMentionsState extends State<FlutterMentions> {
 
     if (widget.onSearchChanged != null && _selectedMention?.str != null) {
       final str = _selectedMention.str.toLowerCase();
-      if(startedMention)
-        widget.onSearchChanged(str[0], str.substring(1));
+      if (startedMention) widget.onSearchChanged(str[0], str.substring(1));
     }
   }
 
